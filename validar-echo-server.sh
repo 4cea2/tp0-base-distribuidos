@@ -1,0 +1,4 @@
+#!/bin/bash
+
+MESSAGE="message"
+RESPONSE=$(docker run --rm --network tp0_testing_net alpine sh -c "echo $MESSAGE | nc server 12345")
