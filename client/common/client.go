@@ -58,12 +58,17 @@ func (c *Client) StartClientLoop() {
 	signal_channel := make(chan os.Signal, 1)
 	// Notify the channel on SIGTERM signal
 	signal.Notify(signal_channel, syscall.SIGTERM)
-	// Block until a signal is received
-	signal_received := <- signal_channel
-	log.Infof("action: signal_received | result: success | client_id: %v | signal: %v",
-		c.config.ID,
-		signal_received,
-	)
+
+	// Start a goroutine to handle termination signals
+	go func() {
+		// Block until a signal is received
+		signal_received := <- signal_channel
+		if c.conn != nil {
+			c.conn.Close()
+		}
+		log.Infof("action: shutdown | result: success | signal: %v | client_id: %v", signal_received, c.config.ID)
+	}()
+
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
@@ -99,3 +104,4 @@ func (c *Client) StartClientLoop() {
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
+
