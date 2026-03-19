@@ -7,6 +7,7 @@ import (
 	"time"
 	"os"
 	"os/signal"
+	"syscall"
 	"github.com/op/go-logging"
 )
 
