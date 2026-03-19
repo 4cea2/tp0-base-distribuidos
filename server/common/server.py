@@ -10,11 +10,13 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._running = True
+        self._client_socket = None
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
     def _handle_sigterm(self, signum, frame):
         self._running = False
-        self._server_socket.close()
+        if self._server_socket is not None: self._server_socket.close()
+        if self._client_socket is not None: self._client_socket.close()
         logging.info('action: shutdown | result: success | signal: SIGTERM')
 
 
@@ -30,12 +32,12 @@ class Server:
         # TODO: Modify this program to handle signal to graceful shutdown
         # the server
         while self._running:
-            client_sock = self.__accept_new_connection()
-            if client_sock is None:
-                break # Or continue, because is_running is already false, so the loop will end in the next iteration
-            self.__handle_client_connection(client_sock)
+            self._client_socket = self.__accept_new_connection()
+            if self._client_socket is None:
+                break
+            self.__handle_client_connection()
 
-    def __handle_client_connection(self, client_sock):
+    def __handle_client_connection(self):
         """
         Read message from a specific client socket and closes the socket
 
@@ -44,15 +46,16 @@ class Server:
         """
         try:
             # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
-            addr = client_sock.getpeername()
+            msg = self._client_socket.recv(1024).rstrip().decode('utf-8')
+            addr = self._client_socket.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
             # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            self._client_socket.send("{}\n".format(msg).encode('utf-8'))
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
-            client_sock.close()
+            if self._running:
+                self._client_socket.close()
 
     def __accept_new_connection(self):
         """
