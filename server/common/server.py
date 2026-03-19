@@ -31,6 +31,8 @@ class Server:
         # the server
         while self._running:
             client_sock = self.__accept_new_connection()
+            if client_sock is None:
+                break # Or continue, because is_running is already false, so the loop will end in the next iteration
             self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock):
@@ -62,6 +64,11 @@ class Server:
 
         # Connection arrived
         logging.info('action: accept_connections | result: in_progress')
-        c, addr = self._server_socket.accept()
+        try:
+            c, addr = self._server_socket.accept()
+        except OSError as e:
+            # The server socket is closed (probably due to SIGTERM signal), so return None to finish the server loop
+            return None
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+        
         return c
