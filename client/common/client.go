@@ -25,7 +25,7 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	stop_channel chan bool
+	stopChannel chan bool
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -33,7 +33,7 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
-		stop_channel: make(chan bool, 1),
+		stopChannel: make(chan bool, 1),
 	}
 	return client
 }
@@ -57,27 +57,27 @@ func (c *Client) createClientSocket() error {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// Create a channel to listen for termination signals
-	signal_channel := make(chan os.Signal, 1)
+	signalChannel := make(chan os.Signal, 1)
 	// Notify the channel on SIGTERM signal
-	signal.Notify(signal_channel, syscall.SIGTERM)
+	signal.Notify(signalChannel, syscall.SIGTERM)
 
 	// Start a goroutine to handle termination signals
 	go func() {
 		// Block until a signal is received
-		signal_received := <- signal_channel
+		signalReceived := <- signalChannel
 		if c.conn != nil {
 			c.conn.Close()
 		}
-		log.Infof("action: shutdown | result: success | signal: %v | client_id: %v", signal_received, c.config.ID)
+		log.Infof("action: shutdown | result: success | signal: %v | client_id: %v", signalReceived, c.config.ID)
 		// Send a notification to the main loop to stop it
-		c.stop_channel <- true
+		c.stopChannel <- true
 	}()
 
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
-		case <- c.stop_channel:
+		case <- c.stopChannel:
 			// If a termination signal is received, the loop is interrupted
 			log.Infof("action: loop_interrupted | result: success | client_id: %v", c.config.ID)
 			return
