@@ -1,9 +1,7 @@
 package common
 
 import (
-	"bufio"
 	"fmt"
-	"net"
 	"time"
 	"os"
 	"os/signal"
@@ -24,34 +22,20 @@ type ClientConfig struct {
 // Client Entity that encapsulates how
 type Client struct {
 	config ClientConfig
-	conn   net.Conn
+	socket *Socket
 	stopChannel chan bool
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
 func NewClient(config ClientConfig) *Client {
+	var socket *Socket
 	client := &Client{
 		config: config,
+		socket: socket,
 		stopChannel: make(chan bool, 1),
 	}
 	return client
-}
-
-// CreateClientSocket Initializes client socket. In case of
-// failure, error is printed in stdout/stderr and exit 1
-// is returned
-func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
-	if err != nil {
-		log.Criticalf(
-			"action: connect | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-	}
-	c.conn = conn
-	return nil
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
@@ -65,8 +49,8 @@ func (c *Client) StartClientLoop() {
 	go func() {
 		// Block until a signal is received
 		signalReceived := <- signalChannel
-		if c.conn != nil {
-			c.conn.Close()
+		if c.socket != nil {
+			c.socket.Close()
 		}
 		log.Infof("action: shutdown | result: success | signal: %v | client_id: %v", signalReceived, c.config.ID)
 		// Send a notification to the main loop to stop it
@@ -82,18 +66,21 @@ func (c *Client) StartClientLoop() {
 			log.Infof("action: loop_interrupted | result: success | client_id: %v", c.config.ID)
 			return
 		default:
-			// Create the connection the server in every loop iteration. Send an
-			c.createClientSocket()
+			var err error
+			c.socket, err = NewSocket(c.config.ServerAddress)
+			if err != nil {
+				log.Criticalf(
+					"action: connect | result: fail | client_id: %v | error: %v",
+					c.config.ID,
+					err,
+				)
+			}
 
-			// TODO: Modify the send to avoid short-write
-			fmt.Fprintf(
-				c.conn,
-				"[CLIENT %v] Message N°%v\n",
-				c.config.ID,
-				msgID,
-			)
-			msg, err := bufio.NewReader(c.conn).ReadString('\n')
-			c.conn.Close()
+			msg := fmt.Sprintf("[CLIENT %v] Message N°%v\n", c.config.ID, msgID)
+			c.socket.Send([]byte(msg))
+			data, err := c.socket.Receive(len(msg))
+			msg = string(data)
+			c.socket.Close()
 
 			if err != nil {
 				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
