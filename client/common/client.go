@@ -25,6 +25,7 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
+	stop_channel chan bool
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -32,6 +33,7 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
+		stop_channel: make(chan bool, 1),
 	}
 	return client
 }
@@ -67,40 +69,48 @@ func (c *Client) StartClientLoop() {
 			c.conn.Close()
 		}
 		log.Infof("action: shutdown | result: success | signal: %v | client_id: %v", signal_received, c.config.ID)
+		// Send a notification to the main loop to stop it
+		c.stop_channel <- true
 	}()
 
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
+		select {
+		case <- c.stop_channel:
+			// If a termination signal is received, the loop is interrupted
+			log.Infof("action: loop_interrupted | result: success | client_id: %v", c.config.ID)
 			return
+		default:
+			// Create the connection the server in every loop iteration. Send an
+			c.createClientSocket()
+
+			// TODO: Modify the send to avoid short-write
+			fmt.Fprintf(
+				c.conn,
+				"[CLIENT %v] Message N°%v\n",
+				c.config.ID,
+				msgID,
+			)
+			msg, err := bufio.NewReader(c.conn).ReadString('\n')
+			c.conn.Close()
+
+			if err != nil {
+				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+					c.config.ID,
+					err,
+				)
+				return
+			}
+
+			log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+				c.config.ID,
+				msg,
+			)
+
+			// Wait a time between sending one message and the next one
+			time.Sleep(c.config.LoopPeriod)
 		}
-
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
