@@ -28,6 +28,8 @@ services:
     entrypoint: /client
     environment:
       - CLI_ID={i}
+    env_file:
+      - ./client/.env
     networks:
       - testing_net
     depends_on:
