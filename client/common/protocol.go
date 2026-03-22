@@ -19,7 +19,7 @@ func NewProtocol(socket *Socket) *Protocol {
 	return &Protocol{socket: socket}
 }
 
-// writeInt writes an int field as:
+// writeInt encodes an integer value in the buffer using the TLV-like format
 func writeInt(buf *bytes.Buffer, value int) error {
 	// TYPE
 	if err := buf.WriteByte(TypeInt); err != nil {
@@ -30,6 +30,7 @@ func writeInt(buf *bytes.Buffer, value int) error {
 	return binary.Write(buf, binary.BigEndian, int32(value))
 }
 
+// writeString encodes a string value in the buffer using the TLV-like format
 func writeString(buf *bytes.Buffer, value string) error {
 	// TYPE
 	if err := buf.WriteByte(TypeString); err != nil {
