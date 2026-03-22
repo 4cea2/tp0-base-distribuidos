@@ -1,9 +1,9 @@
 package common
 
 import (
-	"bytes"
-	"encoding/binary"
 	"os"
+	"strconv"
+	"fmt"
 )
 
 // Bet struct that represents a bet to be sent to the server
