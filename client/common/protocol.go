@@ -104,7 +104,7 @@ func (p *Protocol) SendBet(bet *Bet) error {
 }
 
 func (p *Protocol) ReceiveConfirmationBet() error {
-	buf, err := p.socket.Receive(1)
+	_, err := p.socket.Receive(1)
 	if err != nil {
 		return err
 	}
