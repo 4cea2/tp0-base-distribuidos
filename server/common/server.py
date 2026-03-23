@@ -36,6 +36,7 @@ class Server:
             logging.info(f'action: receive_bet | result: success | bet: {bet.__dict__}')
             utils.store_bets([bet])
             logging.info(f'action: store_bet | result: success | bet: {bet.__dict__}')
+            protocol.send_confirmation_bet()
         except OSError as e:
             logging.error("action: receive_bet | result: fail | error: {e}")
         finally:

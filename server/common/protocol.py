@@ -2,6 +2,7 @@ from common.utils import Bet
 
 TYPE_INT = 1
 TYPE_STRING = 2
+CONFIRMATION_BET = 0
 
 class Protocol:
     def __init__(self, sock):
@@ -64,3 +65,9 @@ class Protocol:
             birthdate,
             number
         )
+    
+    def send_confirmation_bet(self) -> None:
+        """
+        Send confirmation that a Bet was received successfully.
+        """
+        self._sock.send(bytes([CONFIRMATION_BET]))
