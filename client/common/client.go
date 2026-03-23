@@ -78,7 +78,14 @@ func (c *Client) StartClientLoop() {
 	if err != nil {
 		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 	} else {
-		log.Infof("action: send_bet | result: success | client_id: %v", c.config.ID)
+		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.Document, bet.Number)
+	}
+
+	err = c.protocol.ReceiveConfirmationBet()
+	if err != nil {
+		log.Errorf("action: receive_confirmation_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
+	} else {
+		log.Infof("action: apuesta_almacenada | result: success | dni: %v | numero: %v", bet.Document, bet.Number)
 	}
 
 	if c.socket != nil {

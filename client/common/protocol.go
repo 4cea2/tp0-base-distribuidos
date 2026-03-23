@@ -102,3 +102,13 @@ func (p *Protocol) SendBet(bet *Bet) error {
 
 	return p.socket.Send(data)
 }
+
+func (p *Protocol) ReceiveConfirmationBet() error {
+	buf := make([]byte, 1)
+
+	if err := p.socket.Receive(buf); err != nil {
+		return err
+	}
+
+	return nil
+}
