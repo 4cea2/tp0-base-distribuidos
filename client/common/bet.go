@@ -41,12 +41,15 @@ func loadBetFromEnv() (string, string, int, string, int, error) {
 	return firstName, lastName, document, birthDate, number, nil
 }
 
-func NewBet(agency int) (*Bet, error) {
+func NewBet(agency_str string) (*Bet, error) {
 	firstName, lastName, document, birthDate, number, err := loadBetFromEnv()
 	if err != nil {
 		return nil, err
 	}
-
+	agency, err := strconv.Atoi(agency_str)
+	if err != nil {
+		return nil, fmt.Errorf("invalid agency ID: %w", err)
+	}
 	return &Bet{
 		Agency:    agency,
 		FirstName: firstName,
