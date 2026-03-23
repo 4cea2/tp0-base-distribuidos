@@ -8,6 +8,7 @@ import (
 const (
 	TypeInt    = 1
 	TypeString = 2
+	ConfirmationBetSize = 1
 )
 
 type Protocol struct {
@@ -92,7 +93,7 @@ func serializeBet(bet *Bet) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// SendBet sends a bet message through the protocol socket.
+// SendBet sends a bet message through the protocol socket
 // In case of failure, error is returned
 func (p *Protocol) SendBet(bet *Bet) error {
 	data, err := serializeBet(bet)
@@ -103,8 +104,11 @@ func (p *Protocol) SendBet(bet *Bet) error {
 	return p.socket.Send(data)
 }
 
+// ReceiveConfirmationBet receives a confirmation message from the server after sending a bet
+// The confirmation message is expected to be a single byte
+// In case of failure, error is returned
 func (p *Protocol) ReceiveConfirmationBet() error {
-	_, err := p.socket.Receive(1)
+	_, err := p.socket.Receive(ConfirmationBetSize)
 	if err != nil {
 		return err
 	}
