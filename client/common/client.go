@@ -93,8 +93,10 @@ func (c *Client) StartClientLoop() {
 		record_bet, err := c.readerCsv.ReadNext()
 		if err == io.EOF {
 			if len(batch) > 0 {
-				c.sendBatch(batch)
+				c.sendBatchAndReceiveResponse(batch) // Send the last batch
+				batch = batch[:0]
 			}
+			c.sendBatchAndReceiveResponse(batch) // Send an empty batch to signal the end of bets
 			log.Infof("action: end_of_file | result: success | client_id: %v", c.config.ID)
 			break
 		}
@@ -112,16 +114,17 @@ func (c *Client) StartClientLoop() {
 		batch = append(batch, bet)
 
 		if len(batch) == c.config.BatchMaxAmount {
-			c.sendBatch(batch)
+			c.sendBatchAndReceiveResponse(batch)
 			batch = batch[:0]
 		}
 	}
 	if c.socket != nil {
 		if err := c.socket.Close(); err != nil {
 			log.Errorf("action: close_socket | result: fail | error: %v", err)
+		} else {
+			log.Infof("action: close_socket | result: success | client_id: %v", c.config.ID)
 		}
-		c.socket = nil
-		log.Infof("action: close_socket | result: success | client_id: %v", c.config.ID)
+		c.socket = nil	
 	}
 
 	if err := c.readerCsv.Close(); err != nil {
@@ -132,10 +135,17 @@ func (c *Client) StartClientLoop() {
 	log.Infof("action: client_finished | result: success | client_id: %v", c.config.ID)
 }
 
-func (c *Client) sendBatch(batch []*Bet) {
+func (c *Client) sendBatchAndReceiveResponse(batch []*Bet) {
     if err := c.protocol.SendBatch(batch); err != nil {
         log.Errorf("action: send_batch | result: fail | size: %d | error: %v", len(batch), err)
         return
-    }
-	log.Infof("action: send_batch | result: success | size: %d | client_id: %v", len(batch), c.config.ID)
+    } else {
+		log.Infof("action: send_batch | result: success | size: %d | client_id: %v", len(batch), c.config.ID)
+	}
+
+    if err := c.protocol.ReceiveResponse(); err != nil {
+		log.Errorf("action: receive_response | result: fail | error: %v", err)
+    } else {
+		log.Infof("action: receive_response | result: success | client_id: %v", c.config.ID)
+	}
 }
