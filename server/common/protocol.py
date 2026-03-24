@@ -9,6 +9,8 @@ TYPE_SIZE = 1
 INT_SIZE = 4
 STRING_LENGTH_SIZE = 2
 
+BATCH_COUNT_SIZE = 4
+
 class Protocol:
     def __init__(self, sock):
         self._sock = sock
@@ -76,3 +78,19 @@ class Protocol:
         Send confirmation that a Bet was received successfully.
         """
         self._sock.send(bytes([CONFIRMATION_BET]))
+
+    def receive_batch(self) -> list[Bet]:
+        """
+        Receive the batch size and then each bet in the batch.
+        """
+        try:
+            count_bytes = self._sock.receive(BATCH_COUNT_SIZE)
+            batch_size = int.from_bytes(count_bytes, byteorder="big")
+            
+            bets = []
+            for _ in range(batch_size):
+                bets.append(self.receive_bet())
+            return bets
+        except (RuntimeError, ConnectionError):
+            # If the socket is closed or there's a read error, return an empty list
+            return []
