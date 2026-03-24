@@ -1,9 +1,33 @@
 server:
   address: "server:12345"
 loop:
-  amount: 500
-  period: "150ms"
+  amount: 3
+  period: "50ms"
 log:
   level: "INFO"
 batch:
-  maxAmount: 100 # "Maximum" number of bets to send in a batch depending from protocol implementation
+  maxAmount: 100 # Por defecto
+
+# Calculo del tamaño del batch
+# ----------------------------
+# Suponemos que estamos en el peor caso, es decir, donde cada campo del bet es lo más largo posible dentro de lo razonable. 
+# Con esto podemos estimar un tamaño máximo que podría tener un batch.
+# En funcion de como serializamos cada batch, detallamos el costo en bytes de cada campo:
+
+# Header del batch `BET_COUNT` (4 bytes) — Se suma una vez por paquete.
+# Campos del bet:
+#    -Agency     (int32): Type (1) + Value (4) = 5 bytes.
+#    -FirstName (string): Type (1) + Length (2) + Texto. Si estimamos un nombre "largo" de 20 caracteres = 23 bytes.
+#    -LastName  (string): Type (1) + Length (2) + Texto. Si estimamos un apellido "largo" de 20 caracteres = 23 bytes.
+#    -Document   (int32): Type (1) + Value (4) = 5 bytes.
+#    -BirthDate (string): Type (1) + Length (2) + "YYYY-MM-DD" (10) = 13 bytes.
+#    -Number     (int32): Type (1) + Value (4) = 5 bytes.
+
+# Total estimado por bet: ~74 bytes.
+
+# Cada paquete total (Header + Bets) tiene que ser menor a 8000 bytes:
+# 8000 bytes (límite) - 4 bytes (header) = 7996 bytes disponibles para bets.
+# 7996 bytes / 74 bytes por bet es aprox 108 bets por batch.
+
+# Entonces, un tamaño "razonable" para el tamaño del batch podría ser 100 bets por batch, 
+# dejando un margen de seguridad para variaciones en el tamaño de los campos.
