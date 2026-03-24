@@ -5,6 +5,11 @@ from common.socket import Socket
 from common.protocol import Protocol
 import common.utils as utils
 
+from common.protocol import (
+    ACK_SUCCESS_BATCH,
+    ACK_ERROR_BATCH
+)
+
 class Server:
     def __init__(self, port, listen_backlog):
         self._server_socket = Socket(port, listen_backlog)
@@ -29,19 +34,28 @@ class Server:
 
     def __handle_client_connection(self):
         protocol = Protocol(self._client_socket)
-        try:
-            while self._running:
+        while self._running:
+            try:
                 batch = protocol.receive_batch()
-                if not batch:
-                    logging.info("action: client_finished | result: success")
-                    break
+            except (RuntimeError, ConnectionError): 
+                # Client closed connection
+                logging.info("action: connection_closed | result: success")
+                break
+            try:
                 logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(batch)}')
-                utils.store_bets(batch)
-        except OSError as e:
-            if self._running:
+                if len(batch) > 0:
+                    utils.store_bets(batch)
+
+                protocol.send_response(ACK_SUCCESS_BATCH)
+                if len(batch) == 0: 
+                        # Client finished sending batchs and closed connection
+                        logging.info("action: client_finished | result: success")
+                        break
+            except Exception as e:
                 logging.error(f'action: apuesta_recibida | result: fail | cantidad: {len(batch)}')
-        finally:
-            if self._running:
+                protocol.send_response(ACK_ERROR_BATCH)
+            
+        if self._running:
                 self._client_socket.close()
         
 
