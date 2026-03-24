@@ -3,12 +3,14 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 const (
 	typeInt    = 1
 	typeString = 2
-	confirmationBetSize = 1
+	ackErrorBatch   = 1
+	sizeResponse = 1
 )
 
 type Protocol struct {
@@ -129,4 +131,20 @@ func (p *Protocol) SendBatch(bets []*Bet) error {
         }
     }
     return nil
+}
+
+// ReceiveResponse read the response byte from the server.
+// If the received code is ackError or if there is a network failure, an error is returned
+func (p *Protocol) ReceiveResponse() error {
+	data, err := p.socket.Receive(sizeResponse)
+	if err != nil {
+		return fmt.Errorf("error reading response from server: %w", err)
+	}
+
+	code := data[0]
+	if code == ackErrorBatch {
+		return fmt.Errorf("the server reported an error while processing the batch")
+	}
+
+	return nil
 }
