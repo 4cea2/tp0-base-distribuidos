@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	TypeInt    = 1
-	TypeString = 2
-	ConfirmationBetSize = 1
+	typeInt    = 1
+	typeString = 2
+	confirmationBetSize = 1
 )
 
 type Protocol struct {
@@ -23,7 +23,7 @@ func NewProtocol(socket *Socket) *Protocol {
 // writeInt encodes an integer value in the buffer using the TLV-like format
 func writeInt(buf *bytes.Buffer, value int) error {
 	// TYPE
-	if err := buf.WriteByte(TypeInt); err != nil {
+	if err := buf.WriteByte(typeInt); err != nil {
 		return err
 	}
 
@@ -34,7 +34,7 @@ func writeInt(buf *bytes.Buffer, value int) error {
 // writeString encodes a string value in the buffer using the TLV-like format
 func writeString(buf *bytes.Buffer, value string) error {
 	// TYPE
-	if err := buf.WriteByte(TypeString); err != nil {
+	if err := buf.WriteByte(typeString); err != nil {
 		return err
 	}
 
@@ -50,12 +50,13 @@ func writeString(buf *bytes.Buffer, value string) error {
 }
 
 // serialize Bet using a format similar to TLV:
+// | TYPE (1 byte) | LENGTH (2 bytes, optional) | VALUE (N bytes) |
 // TYPE (1 byte):
 //   1 = int
 //   2 = string
 // LENGTH (2 bytes): is only used for the string type
 //
-// VALUE (dinamic size):
+// VALUE (N bytes):
 //  For int type, the value is 4 bytes, and for string type, the value is the length of the string in bytes
 // 
 // ORDER:
@@ -95,7 +96,7 @@ func serializeBet(bet *Bet) ([]byte, error) {
 
 // SendBet sends a bet message through the protocol socket
 // In case of failure, error is returned
-func (p *Protocol) SendBet(bet *Bet) error {
+func (p *Protocol) sendBet(bet *Bet) error {
 	data, err := serializeBet(bet)
 	if err != nil {
 		return err
@@ -104,14 +105,28 @@ func (p *Protocol) SendBet(bet *Bet) error {
 	return p.socket.Send(data)
 }
 
-// ReceiveConfirmationBet receives a confirmation message from the server after sending a bet
-// The confirmation message is expected to be a single byte
-// In case of failure, error is returned
-func (p *Protocol) ReceiveConfirmationBet() error {
-	_, err := p.socket.Receive(ConfirmationBetSize)
-	if err != nil {
-		return err
-	}
+// SendBatch sends a batch of bets to the server
+// It first sends the number of bets as a uint32, followed by each bet serialized in the TLV-like format
+// | BET_COUNT (4 bytes) | BETS (N bytes) |
+func (p *Protocol) SendBatch(bets []*Bet) error {
+    // serialize the batch size (number of bets)
+    batchSize := uint32(len(bets))
+    sizeBuf := make([]byte, 4)
+    binary.BigEndian.PutUint32(sizeBuf, batchSize)
 
-	return nil
+    // send the batch size first
+    if err := p.socket.Send(sizeBuf); err != nil {
+        return err
+    }
+    // serialize and send each bet in the batch
+    for _, bet := range bets {
+		data, err := serializeBet(bet) 
+        if err != nil {
+            return err
+        }
+        if err := p.socket.Send(data); err != nil {
+            return err
+        }
+    }
+    return nil
 }
