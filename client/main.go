@@ -88,7 +88,7 @@ func PrintConfig(v *viper.Viper) {
 		v.GetInt("loop.amount"),
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
-		v.GetInt("batch.maxAmount")
+		v.GetInt("batch.maxAmount"),
 	)
 }
 

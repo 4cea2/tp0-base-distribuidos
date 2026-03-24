@@ -129,7 +129,6 @@ func (c *Client) StartClientLoop() {
 	}
 	log.Infof("action: close_reader | result: success | client_id: %v", c.config.ID)
 
-	
 	log.Infof("action: client_finished | result: success | client_id: %v", c.config.ID)
 }
 
@@ -140,4 +139,3 @@ func (c *Client) sendBatch(batch []*Bet) {
     }
 	log.Infof("action: send_batch | result: success | size: %d | client_id: %v", len(batch), c.config.ID)
 }
-
