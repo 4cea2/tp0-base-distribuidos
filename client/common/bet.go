@@ -1,9 +1,17 @@
 package common
 
 import (
-	"os"
 	"strconv"
 	"fmt"
+)
+
+const (
+	// Column indices for the CSV record
+	firstNameIndex = 0
+	lastNameIndex  = 1
+	documentIndex  = 2
+	birthDateIndex = 3
+	numberIndex    = 4
 )
 
 // Bet struct that represents a bet to be sent to the server
@@ -16,46 +24,36 @@ type Bet struct {
 	Number    int
 }
 
-// loadBetFromEnv reads, validates and parses env variables
-func loadBetFromEnv() (string, string, int, string, int, error) {
-	firstName := os.Getenv("NOMBRE")
-	lastName := os.Getenv("APELLIDO")
-	documentStr := os.Getenv("DOCUMENTO")
-	birthDate := os.Getenv("NACIMIENTO")
-	numberStr := os.Getenv("NUMERO")
-
-	if firstName == "" || lastName == "" || documentStr == "" || birthDate == "" || numberStr == "" {
-		return "", "", 0, "", 0, fmt.Errorf("missing required environment variables")
+// NewBet creates a new Bet instance from the given agency string and CSV record
+// It expects the record to have at least 5 columns: FirstName, LastName, Document, BirthDate, and Number
+// The agency string is converted to an integer and assigned to the Agency field
+// If any conversion fails, an error is returned
+func NewBet(agencyStr string, record []string) (*Bet, error) {
+	if len(record) < 5 {
+		return nil, fmt.Errorf("registro incompleto: se esperaban 5 columnas, hay %d", len(record))
 	}
 
-	document, err := strconv.Atoi(documentStr)
+	agency, err := strconv.Atoi(agencyStr)
 	if err != nil {
-		return "", "", 0, "", 0, fmt.Errorf("invalid DOCUMENTO: %w", err)
+		return nil, fmt.Errorf("error agency id: %w", err)
 	}
 
-	number, err := strconv.Atoi(numberStr)
+	doc, err := strconv.Atoi(record[documentIndex])
 	if err != nil {
-		return "", "", 0, "", 0, fmt.Errorf("invalid NUMERO: %w", err)
+		return nil, fmt.Errorf("error documento: %w", err)
 	}
 
-	return firstName, lastName, document, birthDate, number, nil
-}
+	num, err := strconv.Atoi(record[numberIndex])
+	if err != nil {
+		return nil, fmt.Errorf("error número apuesta: %w", err)
+	}
 
-func NewBet(agency_str string) (*Bet, error) {
-	firstName, lastName, document, birthDate, number, err := loadBetFromEnv()
-	if err != nil {
-		return nil, err
-	}
-	agency, err := strconv.Atoi(agency_str)
-	if err != nil {
-		return nil, fmt.Errorf("invalid agency ID: %w", err)
-	}
 	return &Bet{
 		Agency:    agency,
-		FirstName: firstName,
-		LastName:  lastName,
-		Document:  document,
-		BirthDate: birthDate,
-		Number:    number,
+		FirstName: record[firstNameIndex],
+		LastName:  record[lastNameIndex],
+		Document:  doc,
+		BirthDate: record[birthDateIndex],
+		Number:    num,
 	}, nil
 }
