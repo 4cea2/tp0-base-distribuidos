@@ -3,7 +3,8 @@ from common.utils import Bet
 TYPE_INT = 1
 TYPE_STRING = 2
 
-CONFIRMATION_BET = 0
+ACK_SUCCESS_BATCH = 0
+ACK_ERROR_BATCH = 1
 
 TYPE_SIZE = 1
 INT_SIZE = 4
@@ -72,25 +73,22 @@ class Protocol:
             birthdate,
             number
         )
-    
-    def send_confirmation_bet(self) -> None:
-        """
-        Send confirmation that a Bet was received successfully.
-        """
-        self._sock.send(bytes([CONFIRMATION_BET]))
 
     def receive_batch(self) -> list[Bet]:
         """
         Receive the batch size and then each bet in the batch.
         """
-        try:
-            count_bytes = self._sock.receive(BATCH_COUNT_SIZE)
-            batch_size = int.from_bytes(count_bytes, byteorder="big")
-            
-            bets = []
-            for _ in range(batch_size):
-                bets.append(self.receive_bet())
-            return bets
-        except (RuntimeError, ConnectionError):
-            # If the socket is closed or there's a read error, return an empty list
-            return []
+        count_bytes = self._sock.receive(BATCH_COUNT_SIZE)
+        batch_size = int.from_bytes(count_bytes, byteorder="big")
+        
+        bets = []
+        for _ in range(batch_size):
+            bets.append(self.receive_bet())
+        return bets
+        
+
+    def send_response(self, code: int):
+        """ 
+        Send a single byte response code
+        """
+        self._sock.send(bytes([code]))
