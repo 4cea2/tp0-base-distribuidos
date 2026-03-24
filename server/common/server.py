@@ -20,8 +20,6 @@ class Server:
 
 
     def run(self):
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
         while self._running:
             self._client_socket = self.__accept_new_connection()
             if self._client_socket is None:
@@ -32,16 +30,20 @@ class Server:
     def __handle_client_connection(self):
         protocol = Protocol(self._client_socket)
         try:
-            bet = protocol.receive_bet()
-            logging.info(f'action: receive_bet | result: success | bet: {bet.__dict__}')
-            utils.store_bets([bet])
-            logging.info(f'action: store_bet | result: success | bet: {bet.__dict__}')
-            protocol.send_confirmation_bet()
+            while self._running:
+                batch = protocol.receive_batch()
+                if not batch:
+                    logging.info("action: client_finished | result: success")
+                    break
+                logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(batch)}')
+                utils.store_bets(batch)
         except OSError as e:
-            logging.error("action: receive_bet | result: fail | error: {e}")
+            if self._running:
+                logging.error(f'action: apuesta_recibida | result: fail | cantidad: {len(batch)}')
         finally:
             if self._running:
                 self._client_socket.close()
+        
 
     def __accept_new_connection(self):
         # Connection arrived
