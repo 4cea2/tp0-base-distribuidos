@@ -121,11 +121,15 @@ func (c *Client) StartClientLoop() {
 			log.Errorf("action: close_socket | result: fail | error: %v", err)
 		}
 		c.socket = nil
+		log.Infof("action: close_socket | result: success | client_id: %v", c.config.ID)
 	}
 
 	if err := c.readerCsv.Close(); err != nil {
 		log.Errorf("action: close_reader | result: fail | error: %v", err)
 	}
+	log.Infof("action: close_reader | result: success | client_id: %v", c.config.ID)
+
+	
 	log.Infof("action: client_finished | result: success | client_id: %v", c.config.ID)
 }
 
