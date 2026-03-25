@@ -118,6 +118,20 @@ func (c *Client) StartClientLoop() {
 			batch = batch[:0]
 		}
 	}
+
+	if err := c.readerCsv.Close(); err != nil {
+		log.Errorf("action: close_reader | result: fail | error: %v", err)
+	} else {
+		log.Infof("action: close_reader | result: success | client_id: %v", c.config.ID)
+	}
+
+	winners := c.protocol.ReceiveWinners() // Wait to receive the winners of the lottery before shutting down
+	if winners != nil {
+		log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d | client_id: %v", len(winners), c.config.ID)
+	}else {
+		log.Errorf("action: consulta_ganadores | result: fail | client_id: %v", c.config.ID)
+	}
+
 	if c.socket != nil {
 		if err := c.socket.Close(); err != nil {
 			log.Errorf("action: close_socket | result: fail | error: %v", err)
@@ -126,11 +140,6 @@ func (c *Client) StartClientLoop() {
 		}
 		c.socket = nil	
 	}
-
-	if err := c.readerCsv.Close(); err != nil {
-		log.Errorf("action: close_reader | result: fail | error: %v", err)
-	}
-	log.Infof("action: close_reader | result: success | client_id: %v", c.config.ID)
 
 	log.Infof("action: client_finished | result: success | client_id: %v", c.config.ID)
 }
