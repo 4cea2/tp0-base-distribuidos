@@ -92,3 +92,44 @@ class Protocol:
         Send a single byte response code
         """
         self._sock.send(bytes([code]))
+
+    def send_winners(self, winners: list[Bet]):
+        """
+        Send the batch size and then each winning bet in the batch.
+        """
+        count_bytes = len(winners).to_bytes(BATCH_COUNT_SIZE, byteorder="big")
+        self._sock.send(count_bytes)
+        for bet in winners:
+            self._send_bet(bet)
+
+    def _send_int(self, value: int):
+        """
+        Send an integer in TLV-like format
+        """
+        self._sock.send(bytes([TYPE_INT]))
+        self._sock.send(value.to_bytes(INT_SIZE, byteorder="big"))
+
+
+    def _send_string(self, value: str):
+        """"
+        Send a string in TLV-like format
+        """
+        encoded = value.encode()
+        self._sock.send(bytes([TYPE_STRING]))
+        self._sock.send(len(encoded).to_bytes(STRING_LENGTH_SIZE, byteorder="big"))
+        self._sock.send(encoded)
+
+
+    def _send_bet(self, bet: Bet):
+        """
+        Send a Bet in TLV-like format, following the same order as receive_bet
+        """
+        self._send_int(bet.agency)
+        self._send_string(bet.first_name)
+        self._send_string(bet.last_name)
+        self._send_int(int(bet.document))
+        self._send_string(bet.birthdate.isoformat())
+        self._send_int(bet.number)
+
+    def close_connection(self):
+        self._sock.close()
