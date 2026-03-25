@@ -24,36 +24,24 @@ class Server:
         if self._client_socket is not None: self._client_socket.close()
         logging.info('action: shutdown | result: success | signal: SIGTERM')
 
-
     def run(self):
-        # Find incoming connections until all expected agencies are connected or a termination signal (SIGTERM) is received
-        while self._running and self._expected_agencies != len(self._agencies_ready):
+        # Wait for all expected agencies to connect and send their bets, and save the protocol of each agency that finished sending bets to later send the lottery results
+        self._wait_for_agencies()
+
+       # Start the lottery and determine the winners by agency
+        logging.info("action: sorteo | result: success")
+        winners_by_agency = self._start_lottery()
+
+        # Notify results to each agency and close connections
+        self._distribute_results(winners_by_agency)
+
+    def _wait_for_agencies(self):
+        """Find incoming connections until all expected agencies are connected"""
+        while self._running and len(self._agencies_ready) < self._expected_agencies:
             self._client_socket = self.__accept_new_connection()
             if self._client_socket is None:
                 break
             self.__handle_client_connection()
-
-        # Start the lottery
-        logging.info("action: sorteo | result: success")
-        bets = utils.load_bets() # Función de la cátedra
-
-        # Find the winners for each agency that sent the notification that they finished sending bets
-        winners_by_agency = {}
-        for agency_id in self._agencies_ready.keys():
-            winners_by_agency[agency_id] = []
-        for bet in bets:
-            if utils.has_won(bet):
-                winners_by_agency[bet.agency].append(bet)
-
-        # Send the winners to each agency that connected and notified that it finished sending bets, and then close the connection with each of them
-        for agency_id, protocol in self._agencies_ready.items():
-            try:
-                protocol.send_winners(winners_by_agency[agency_id])
-                logging.info(f'action: enviar_ganadores | result: success | agencia: {agency_id} | ganadores: {len(winners_by_agency[agency_id])}')
-            except Exception as e:
-                logging.error(f'action: enviar_ganadores | result: fail | error: {str(e)} | agencia: {agency_id}')
-            # Close the connection with the agency after sending the winners, since no more messages are expected from it
-            protocol.close_connection()
 
     def __handle_client_connection(self):
         protocol = Protocol(self._client_socket)
@@ -81,8 +69,6 @@ class Server:
                 logging.error(f'action: apuesta_recibida | result: fail | cantidad: {len(batch)}')
                 protocol.send_response(ACK_ERROR_BATCH)
 
-        
-
     def __accept_new_connection(self):
         # Connection arrived
         logging.info('action: accept_connections | result: in_progress')
@@ -94,3 +80,33 @@ class Server:
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         
         return c
+
+    def _start_lottery(self) -> dict[int, list[utils.Bet]]:
+            """Loads all bets and filters winners grouped by agency"""
+            all_bets = utils.load_bets()
+            
+            winners_by_agency = {agency_id: [] for agency_id in self._agencies_ready.keys()}
+            
+            for bet in all_bets:
+                if utils.has_won(bet) and bet.agency in winners_by_agency:
+                    winners_by_agency[bet.agency].append(bet)
+            
+            return winners_by_agency
+    
+    def _distribute_results(self, winners_by_agency: dict[int, list[utils.Bet]]):
+        """Sends the winner list to each connected agency and closes the connection"""
+        for agency_id, protocol in self._agencies_ready.items():
+            winners = winners_by_agency.get(agency_id, [])
+            try:
+                protocol.send_winners(winners)
+                logging.info(
+                    f'action: enviar_ganadores | result: success | '
+                    f'agencia: {agency_id} | ganadores: {len(winners)}'
+                )
+            except Exception as e:
+                logging.error(
+                    f'action: enviar_ganadores | result: fail | '
+                    f'error: {str(e)} | agencia: {agency_id}'
+                )
+            finally:
+                protocol.close_connection()
