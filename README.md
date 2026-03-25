@@ -179,6 +179,15 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 
 Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. En caso de que el alumno implemente el servidor en Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
 
+### RESOLUCION EJERCICIO N°8
+
+Entiendo que al usar multithreading en python, el GIL impide que muchos hilos ejecuten el mismo codigo al mismo tiempo, evitando asi el paralelismo. Pero en este tp en especifico el server esta casi todo el tiempo haciendo operaciones I/O bound (lectura/escritura de socket), ya que espera bloqueado esperando que las agencias envien sus batches por la red. Si usamos threads, al bloquearse, el SO puede ceder el control a otro hilo para que procese otra conexion distinta, dando asi el casi pero muy cercano paralelismo.
+
+Por ende, voy por el camino del multithreading, aunque no sea 100% paralelismo real (seria concurrente en todo caso), da la sensacion de serlo solo por la naturaleza del servidor (espera bloqueado la mayoria del tiempo esperando recibir algo del lado del cliente y responderle). 
+
+Si hubiese otras operaciones que sea mas del estilo CPU bound (calculos matematicos por ejemplo), entonces ahi si me iria por el camino del multiprocessing. 
+
+
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
 
