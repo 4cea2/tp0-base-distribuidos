@@ -61,13 +61,19 @@ class Server:
 
                 protocol.send_response(ACK_SUCCESS_BATCH)
                 if len(batch) == 0: 
-                        # Notification that the client finished sending bets, so save its protocol to later send the lottery results
+                        # Notification that the client finished sending bets
                         logging.info("action: client_finished | result: success")
-                        self._agencies_ready[agency_id] = protocol
                         break
             except Exception as e:
                 logging.error(f'action: apuesta_recibida | result: fail | cantidad: {len(batch)}')
                 protocol.send_response(ACK_ERROR_BATCH)
+        
+        if protocol.receive_winners_request():
+            logging.info(f'action: consulta_ganadores | result: success | agencia: {agency_id}')
+            self._agencies_ready[agency_id] = protocol
+        else:
+            logging.error(f'action: consulta_ganadores | result: fail | agencia: {agency_id}')
+            protocol.close_connection()
 
     def __accept_new_connection(self):
         # Connection arrived

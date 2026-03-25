@@ -2,6 +2,7 @@ from common.utils import Bet
 
 TYPE_INT = 1
 TYPE_STRING = 2
+TYPE_WINNERS_REQUEST = 3
 
 ACK_SUCCESS_BATCH = 0
 ACK_ERROR_BATCH = 1
@@ -130,6 +131,23 @@ class Protocol:
         self._send_int(int(bet.document))
         self._send_string(bet.birthdate.isoformat())
         self._send_int(bet.number)
+
+    def receive_winners_request(self) -> bool:
+        """
+        Block until we receive the winners request byte (3)
+        """
+        try:
+            data = self._sock.receive(TYPE_SIZE)
+            if not data:
+                return False
+            
+            operation_code = data[0]
+            if operation_code == TYPE_WINNERS_REQUEST:
+                return True
+            
+            return False
+        except (RuntimeError, ConnectionError):
+            return False
 
     def close_connection(self):
         self._sock.close()
