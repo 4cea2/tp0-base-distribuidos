@@ -5,7 +5,7 @@ num_clients = int(sys.argv[2])
 
 with open(output_file, "w") as f:
     # Server
-    f.write("""name: tp0
+    f.write(f"""name: tp0
 services:
   server:
     container_name: server
