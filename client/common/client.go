@@ -86,62 +86,75 @@ func (c *Client) handleShutdown() {
 func (c *Client) StartClientLoop() {
 	c.handleShutdown()
 
-	batch := make([]*Bet, 0, c.config.BatchMaxAmount)
-
 	log.Infof("action: start_client_loop | result: success | client_id: %v", c.config.ID)
-	for {
-		record_bet, err := c.readerCsv.ReadNext()
-		if err == io.EOF {
-			if len(batch) > 0 {
-				c.sendBatchAndReceiveResponse(batch) // Send the last batch
-				batch = batch[:0]
-			}
-			c.sendBatchAndReceiveResponse(batch) // Send an empty batch to signal the end of bets
-			log.Infof("action: end_of_file | result: success | client_id: %v", c.config.ID)
-			break
-		}
-		if err != nil {
-			log.Errorf("action: read_line | result: fail | error: %v", err)
-			continue 
-		}
+	
+	// Process bets from .csv in batches and send them to the server, waiting for a response after each batch
+	c.processAndSendBets()
 
-		bet, err := NewBet(c.config.ID, record_bet)
-		if err != nil {
-			log.Errorf("action: create_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
-			continue 
-		}
-		
-		batch = append(batch, bet)
+	// After finishing sending bets, wait to receive the winners from the server and log the result
+	c.handleWinners()
 
-		if len(batch) == c.config.BatchMaxAmount {
-			c.sendBatchAndReceiveResponse(batch)
-			batch = batch[:0]
-		}
-	}
-
-	if err := c.readerCsv.Close(); err != nil {
-		log.Errorf("action: close_reader | result: fail | error: %v", err)
-	} else {
-		log.Infof("action: close_reader | result: success | client_id: %v", c.config.ID)
-	}
-
-	winners := c.protocol.ReceiveWinners() // Wait to receive the winners of the lottery before shutting down
-	if winners != nil {
-		log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d | client_id: %v", len(winners), c.config.ID)
-	}else {
-		log.Errorf("action: consulta_ganadores | result: fail | client_id: %v", c.config.ID)
-	}
-
-	if c.socket != nil {
-		if err := c.socket.Close(); err != nil {
-			log.Errorf("action: close_socket | result: fail | error: %v", err)
-		} else {
-			log.Infof("action: close_socket | result: success | client_id: %v", c.config.ID)
-		}
-		c.socket = nil	
-	}
+	// Close resources
+	c.cleanup()
 
 	log.Infof("action: client_finished | result: success | client_id: %v", c.config.ID)
+}
+
+func (c *Client) processAndSendBets() {
+    batch := make([]*Bet, 0, c.config.BatchMaxAmount)
+
+    for {
+        record, err := c.readerCsv.ReadNext()
+        if err == io.EOF {
+            if len(batch) > 0 {
+                c.sendBatchAndReceiveResponse(batch)
+				batch = batch[:0]
+            }
+            c.sendBatchAndReceiveResponse([]*Bet{}) 
+            log.Infof("action: end_of_file | result: success | client_id: %v", c.config.ID)
+            break
+        }
+        
+        if err != nil {
+            log.Errorf("action: read_line | result: fail | error: %v", err)
+            continue
+        }
+
+        bet, err := NewBet(c.config.ID, record)
+        if err != nil {
+            log.Errorf("action: create_bet | result: fail | error: %v", err)
+            continue
+        }
+
+        batch = append(batch, bet)
+
+        if len(batch) >= c.config.BatchMaxAmount {
+            c.sendBatchAndReceiveResponse(batch)
+            batch = batch[:0]
+        }
+    }
+}
+
+func (c *Client) handleWinners() {
+    winners := c.protocol.ReceiveWinners()
+    if winners != nil {
+        log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d | client_id: %v", len(winners), c.config.ID)
+    } else {
+        log.Errorf("action: consulta_ganadores | result: fail | client_id: %v", c.config.ID)
+    }
+}
+
+func (c *Client) cleanup() {
+    if err := c.readerCsv.Close(); err != nil {
+        log.Errorf("action: close_reader | result: fail | error: %v", err)
+    }
+
+    if c.socket != nil {
+        if err := c.socket.Close(); err != nil {
+            log.Errorf("action: close_socket | result: fail | error: %v", err)
+        }
+        c.socket = nil
+    }
 }
 
 func (c *Client) sendBatchAndReceiveResponse(batch []*Bet) {
