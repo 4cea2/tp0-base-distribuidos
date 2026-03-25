@@ -136,6 +136,13 @@ func (c *Client) processAndSendBets() {
 }
 
 func (c *Client) handleWinners() {
+	if err := c.protocol.SendWinnersRequest(); err != nil {
+		log.Errorf("action: enviar_consulta_ganadores | result: fail | error: %v", err)
+		return
+	} else {
+		log.Infof("action: enviar_consulta_ganadores | result: success | client_id: %v", c.config.ID)
+	}
+
     winners := c.protocol.ReceiveWinners()
     if winners != nil {
         log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d | client_id: %v", len(winners), c.config.ID)

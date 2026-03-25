@@ -9,6 +9,7 @@ import (
 const (
 	typeInt    = 1
 	typeString = 2
+	typeWinnersRequest  = 3
 	ackErrorBatch   = 1
 	sizeResponse = 1
 )
@@ -252,4 +253,11 @@ func (p *Protocol) readString() (string, error) {
 	}
 
 	return string(valueBuf), nil
+}
+
+// SendWinnersRequest sends a request to the server to receive the winners of the lottery
+// The message format is simply a single byte with the type code for the winners request
+func (p *Protocol) SendWinnersRequest() error {
+    data := []byte{typeWinnersRequest}
+    return p.socket.Send(data)
 }
