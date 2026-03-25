@@ -107,6 +107,43 @@ func (p *Protocol) sendBet(bet *Bet) error {
 	return p.socket.Send(data)
 }
 
+// receiveBet reads a bet message from the protocol socket and returns a Bet struct with the received data
+// The expected format of the message is the same as the one used in serializeBet, which is a TLV-like format
+func (p *Protocol) receiveBet() (*Bet, error) {
+	agency, err := p.readInt()
+	if err != nil {
+		return nil, err
+	}
+	name, err := p.readString()
+	if err != nil {
+		return nil, err
+	}
+	lastName, err := p.readString()
+	if err != nil {
+		return nil, err
+	}
+	document, err := p.readInt()
+	if err != nil {
+		return nil, err
+	}
+	birthDate, err := p.readString()
+	if err != nil {
+		return nil, err
+	}
+	number, err := p.readInt()
+	if err != nil {
+		return nil, err
+	}
+	return &Bet{
+		Agency:    agency,
+		FirstName: name,
+		LastName:  lastName,
+		Document:  document,
+		BirthDate: birthDate,
+		Number:    number,
+	}, nil
+}
+
 // SendBatch sends a batch of bets to the server
 // It first sends the number of bets as a uint32, followed by each bet serialized in the TLV-like format
 // | BET_COUNT (4 bytes) | BETS (N bytes) |
@@ -147,4 +184,72 @@ func (p *Protocol) ReceiveResponse() error {
 	}
 
 	return nil
+}
+
+// ReceiveWinners waits to receive the winners of the lottery from the server
+// The format of the message is:
+// | WINNER_COUNT (4 bytes) | WINNERS (N bytes) |
+// Where WINNER_COUNT is the number of winners, and each winner is serialized in the same TLV-like format as the bets
+func (p *Protocol) ReceiveWinners() []*Bet {
+	// receive the number of winners first
+	countBuf, err := p.socket.Receive(4)
+	if err != nil {
+		log.Errorf("action: receive_count_winners | result: fail | error: %v", err)
+		return nil
+	}
+	winnerCount := binary.BigEndian.Uint32(countBuf)
+
+	winners := make([]*Bet, 0, winnerCount)
+	for i := uint32(0); i < winnerCount; i++ {
+		winner, err := p.receiveBet()
+		if err != nil {
+			log.Errorf("action: receive_winners | result: fail | error: %v", err)
+			return nil
+		}
+		winners = append(winners, winner)
+	}
+
+	return winners
+}
+
+// readInt reads an integer value from the protocol socket, expecting the TLV-like format for integers
+func (p *Protocol) readInt() (int, error) {
+	typeBuf, err := p.socket.Receive(1)
+	if err != nil {
+		return 0, err
+	}
+	if typeBuf[0] != typeInt {
+		return 0, fmt.Errorf("expected TYPE_INT, got %d", typeBuf[0])
+	}
+
+	valueBuf, err := p.socket.Receive(4)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(binary.BigEndian.Uint32(valueBuf)), nil
+}
+
+// readString reads a string value from the protocol socket, expecting the TLV-like format for strings
+func (p *Protocol) readString() (string, error) {
+	typeBuf, err := p.socket.Receive(1)
+	if err != nil {
+		return "", err
+	}
+	if typeBuf[0] != typeString {
+		return "", fmt.Errorf("expected TYPE_STRING, got %d", typeBuf[0])
+	}
+
+	lengthBuf, err := p.socket.Receive(2)
+	if err != nil {
+		return "", err
+	}
+	length := binary.BigEndian.Uint16(lengthBuf)
+
+	valueBuf, err := p.socket.Receive(int(length))
+	if err != nil {
+		return "", err
+	}
+
+	return string(valueBuf), nil
 }
