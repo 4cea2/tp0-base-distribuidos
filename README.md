@@ -160,6 +160,18 @@ Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y 
 
 No es correcto realizar un broadcast de todos los ganadores hacia todas las agencias, se espera que se informen los DNIs ganadores que correspondan a cada una de ellas.
 
+### RESOLUCION EJERCICIO N°7
+
+A priori, se me ocurre lo siguiente:
+Yo de antemano ya habia implementado que el cliente avise al servidor cuando no hay mas batchs por mandar (mando el batch con cantidad de bets igual a 0). Entonces, cuando el cliente termine de enviar este ultimo batch, puede quedarse en un receive donde va a recibir a los ganadores de su agencia.
+
+El problema con esto es que por el lado del servidor, voy a tener que mantener la conexiones de los clientes, ya que el servidor cierra ni bien manda todos los batchs. A parte tengo que "saber" de antemano cuantos clientes tengo que esperar para realizar el sorteo, para esto puedo definir una variable de entorno en el .sh que genera el compose, indicando la cantidad de clientes generados por el script.
+
+Por ende, el servidor ni bien llegue a esta cantidad esperada de clientes, arranca el sorteo, y una vez que tenga los ganadores, va a recorrer las conexiones que mantuvo con cada cliente y enviarle los ganadores segun su agencia (la agencia la sé porque cada bet lo manda).
+
+Una vez que el servidor envie los ganadores, cierra la conexion con el cliente. Lo mismo va para el cliente, una vez recibido los ganadores, ahi recien cierra conexion.
+
+
 ## Parte 3: Repaso de Concurrencia
 En este ejercicio es importante considerar los mecanismos de sincronización a utilizar para el correcto funcionamiento de la persistencia.
 
