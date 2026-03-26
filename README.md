@@ -189,3 +189,9 @@ Para crear el `.sh`, opté por tener un subscript en Python que usa el mismo `.s
 Este `.sh`, que lo podemos pensar como un *wrapper*, recibe como parámetro el nombre del archivo final y la cantidad de clientes a generar. Luego, invoca al subscript de Python con los parámetros, el cual generará el archivo indicando los servicios (server y client) y la network.
 
 Cabe mencionar que tomé como ejemplo el `.sh` que daban en el enunciado.
+
+## Ejercicio 2
+
+Se inyectan los *configs* en el generador de Python a través de *Docker volumes*, más específicamente del tipo **bind mount**, ya que queremos que los cambios que hagamos a nivel *host* sobre los *configs* se vean reflejados directamente cuando corren los contenedores. De esta manera, la configuración queda persistida por fuera de la imagen.
+
+También eliminé los log level que venían en el docker-compose, porque en los *configs* ya están definidos.
