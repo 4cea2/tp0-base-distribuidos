@@ -221,3 +221,71 @@ La goroutine se encarga de manejar la señal `SIGTERM` mientras que el cliente c
 Por otro lado, el channel se usa como comunicación entre la goroutine y el hilo principal, permitiendo avisar cuándo se debe cortar el loop de envío de mensajes.
 
 Cuando se recibe la señal, se cierra la conexión activa (si existe), se loguea el evento y se notifica al hilo principal para que finalice.
+
+## Ejercicio 5
+
+Tanto para el server como para el client, se implemento 2 clases:
+
+- **Socket**: se encarga de enviar y recibir datos entre servidor y cliente, evitando problemas de short read/write.
+- **Protocol**: abstrae el uso del socket en el servidor/cliente, de forma tal que no manejen bytes directamente. En su lugar, provee métodos de más alto nivel (como `SendBet` o `receive_bet`). Además, se encarga de serializar y deserializar el bet.
+
+### Server
+
+Modifiqué el loop principal, el cual ahora espera recibir un bet y luego envía la confirmación una vez que este es almacenado mediante `store_bet`.
+
+### Client
+
+Agregué una clase Bet, que se encarga de crearse a partir de las variables de entorno definidas en el generador.
+
+Para construirlo, se leen los valores desde las variables de entorno necesarias. Estas variables son definidas en el generador generador. Inicialmente consideré usar un archivo `.env`, pero como no lo podia subir al repositorio, los tests lo eliminaban automáticamente (ya que se ejecutan sobre el último commit de la branch).
+
+En su creacion, se valida que no haya errores en los campos:
+- En los *strings*, se verifica que no estén vacíos.
+- En los campos numéricos (como `document` y `number`), se valida que puedan convertirse correctamente a enteros.
+
+Dado que se envia un solo bet, eliminé el loop anterior. El cliente simplemente envia y espera la confirmación.
+
+También eliminé el channel que había implementado previamente, ya que sin loop no es necesario. En caso de  el loop, se interrumpiría al recibir un `SIGTERM`, ya que el socket se cierra y el cliente maneja ese error.
+
+### Comunicación
+
+El flujo de comunicación es el siguiente:
+
+1. El servidor espera conexiones de clientes.
+2. El cliente se conecta al servidor.
+3. El servidor acepta la conexión y espera recibir el bet.
+4. El cliente crea el bet, lo envía y espera la confirmación.
+5. El servidor recibe el bet, lo almacena y envía la confirmación.
+6. El cliente recibe la confirmación y cierra el socket.
+7. El servidor cierra la conexión una vez enviada la confirmación.
+8. Vuelve al paso 1
+
+### Serialización
+
+La serialización del bet sigue un formato similar a TLV, con algunas modificaciones:
+
+- **TYPE (1 byte)**:
+  - 1 → entero
+  - 2 → string
+
+- **LENGTH (2 bytes)**:
+  - Solo se utiliza para los campos de tipo *string*
+
+- **VALUE (tamaño dinámico)**:
+  - Para enteros: 4 bytes
+  - Para strings: longitud variable según el campo *LENGTH*
+
+- **Orden de los campos**:
+  Agency → FirstName → LastName → Document → BirthDate → Number
+
+Luego, para la confirmacion, simplemente consta de un solo byte.
+
+### Ejemplo
+
+- `[01][00 00 00 01]` → Agency = 1 (int32)  
+- `[02][00 10]Santiago Lionel` → FirstName (longitud = 16)  
+- `[02][00 05]Lorca` → LastName (longitud = 5)  
+- `[01][01 D7 8F 91]` → Document = 30904465 (int32)  
+- `[02][00 0A]1999-03-17` → BirthDate (longitud = 10)  
+- `[01][00 00 1D 96]` → Number = 7574 (int32)
+
