@@ -195,3 +195,11 @@ Cabe mencionar que tomé como ejemplo el `.sh` que daban en el enunciado.
 Se inyectan los *configs* en el generador de Python a través de *Docker volumes*, más específicamente del tipo **bind mount**, ya que queremos que los cambios que hagamos a nivel *host* sobre los *configs* se vean reflejados directamente cuando corren los contenedores. De esta manera, la configuración queda persistida por fuera de la imagen.
 
 También eliminé los log level que venían en el docker-compose, porque en los *configs* ya están definidos.
+
+## Ejercicio 3
+
+Para crear el `.sh`, utilicé una imagen de Docker (*Alpine*), la cual incluye `sh` y el comando `netcat`.
+
+Dentro del script, se levanta un contenedor (que luego se cierra por sí mismo con `--rm`) que se comunica con el servidor y envía un mensaje a través de su *network*. Luego, espera recibir una respuesta, que debería ser exactamente la misma que se envió (echo server).
+
+Finalmente, se realiza una verificación comparando el mensaje enviado con el recibido para determinar si el comportamiento del servidor es correcto.
