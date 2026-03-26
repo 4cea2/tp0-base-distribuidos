@@ -179,3 +179,13 @@ Se proveen [pruebas automáticas](https://github.com/7574-sistemas-distribuidos/
 
 El incumplimiento de las pruebas es condición de desaprobación, pero su cumplimiento no es suficiente para la aprobación.  Se pide a los alumnos leer atentamente y **tener en cuenta** los criterios de corrección informados  [en el campus](https://campusgrado.fi.uba.ar/mod/page/view.php?id=73393).
 Respetar el formato y contenido las entradas de logs descritas en los ejercicios, pues son las que se chequean en cada uno de los tests.
+
+# Resolucion
+
+## Ejercicio 1
+
+Para crear el .sh, opte por tener un subscript en python que usa el mismo .sh.
+
+Este .sh, que lo podemos pensar como un wrapper, recibe como parametro el nombre del archivo final y la cantidad de clientes a generar. Luego, invoca al subcript de python con los parametros, el cual generara el archivo indicando los servicios (server y client) y la network.
+
+Cabe mencionar que tome como ejemplo el .sh que daban en el enunciado
