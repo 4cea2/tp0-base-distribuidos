@@ -184,8 +184,8 @@ Respetar el formato y contenido las entradas de logs descritas en los ejercicios
 
 ## Ejercicio 1
 
-Para crear el .sh, opte por tener un subscript en python que usa el mismo .sh.
+Para crear el `.sh`, opté por tener un subscript en Python que usa el mismo `.sh`.
 
-Este .sh, que lo podemos pensar como un wrapper, recibe como parametro el nombre del archivo final y la cantidad de clientes a generar. Luego, invoca al subcript de python con los parametros, el cual generara el archivo indicando los servicios (server y client) y la network.
+Este `.sh`, que lo podemos pensar como un *wrapper*, recibe como parámetro el nombre del archivo final y la cantidad de clientes a generar. Luego, invoca al subscript de Python con los parámetros, el cual generará el archivo indicando los servicios (server y client) y la network.
 
-Cabe mencionar que tome como ejemplo el .sh que daban en el enunciado
+Cabe mencionar que tomé como ejemplo el `.sh` que daban en el enunciado.
