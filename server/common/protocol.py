@@ -41,7 +41,7 @@ class Protocol:
         data = self._sock.receive(length)
         return data.decode()
 
-    def receive_bet(self) -> Bet:
+    def _receive_bet(self) -> Bet:
         """
         Receive and deserialize a Bet using TLV format.
         ORDER:
@@ -84,7 +84,7 @@ class Protocol:
         
         bets = []
         for _ in range(batch_size):
-            bets.append(self.receive_bet())
+            bets.append(self._receive_bet())
         return bets
         
 
@@ -123,7 +123,7 @@ class Protocol:
 
     def _send_bet(self, bet: Bet):
         """
-        Send a Bet in TLV-like format, following the same order as receive_bet
+        Send a Bet in TLV-like format, following the same order as _receive_bet
         """
         self._send_int(bet.agency)
         self._send_string(bet.first_name)
