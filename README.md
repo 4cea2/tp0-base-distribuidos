@@ -160,18 +160,6 @@ Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y 
 
 No es correcto realizar un broadcast de todos los ganadores hacia todas las agencias, se espera que se informen los DNIs ganadores que correspondan a cada una de ellas.
 
-### RESOLUCION EJERCICIO N°7
-
-A priori, se me ocurre lo siguiente:
-Yo de antemano ya habia implementado que el cliente avise al servidor cuando no hay mas batchs por mandar (mando el batch con cantidad de bets igual a 0). Entonces, cuando el cliente termine de enviar este ultimo batch, puede quedarse en un receive donde va a recibir a los ganadores de su agencia.
-
-El problema con esto es que por el lado del servidor, voy a tener que mantener la conexiones de los clientes, ya que el servidor cierra ni bien manda todos los batchs. A parte tengo que "saber" de antemano cuantos clientes tengo que esperar para realizar el sorteo, para esto puedo definir una variable de entorno en el .sh que genera el compose, indicando la cantidad de clientes generados por el script.
-
-Por ende, el servidor ni bien llegue a esta cantidad esperada de clientes, arranca el sorteo, y una vez que tenga los ganadores, va a recorrer las conexiones que mantuvo con cada cliente y enviarle los ganadores segun su agencia (la agencia la sé porque cada bet lo manda).
-
-Una vez que el servidor envie los ganadores, cierra la conexion con el cliente. Lo mismo va para el cliente, una vez recibido los ganadores, ahi recien cierra conexion.
-
-
 ## Parte 3: Repaso de Concurrencia
 En este ejercicio es importante considerar los mecanismos de sincronización a utilizar para el correcto funcionamiento de la persistencia.
 
@@ -385,3 +373,45 @@ Cada paquete total (Header + Bets) tiene que ser menor a 8000 bytes:
 - 7996 bytes / 74 bytes por bet es aprox 108 bets por batch.
 
 Entonces, un tamaño "razonable" para el tamaño del batch podría ser 100 bets por batch, dejando un margen de seguridad para variaciones en el tamaño de los campos.
+
+## Ejercicio 7
+
+### Client
+
+Se realizaron pocos cambios en el cliente, ya que la notificación de finalización (envío de un batch con 0 bets) ya estaba implementada, por lo que esa parte se mantiene igual.
+
+Una vez enviada esta notificación, el cliente realiza una consulta de ganadores, la cual será respondida por el servidor cuando disponga de los resultados. Hasta ese momento, el cliente permanece bloqueado esperando la respuesta.
+
+Cuando recibe los ganadores, el cliente cierra la conexión con el servidor.
+
+### Server
+
+El servidor ahora debe esperar a que todas las agencias se conecten y envíen sus apuestas antes de iniciar el sorteo.
+
+Para esto, acepta conexiones hasta que ocurra alguna de las siguientes condiciones:
+
+- Se reciba una señal `SIGTERM`, o
+- Se haya alcanzado la cantidad esperada de clientes (definida mediante una variable de entorno generada en el `.sh`)
+
+Cuando un cliente finaliza el envío de sus apuestas y realiza la consulta de ganadores, el servidor lo mantiene en espera, almacenando su conexión en un diccionario.
+
+Una vez finalizado el sorteo, el servidor recorre estas conexiones en espera y envía los ganadores a cada cliente.
+
+Luego de enviar los resultados, el servidor cierra todas esas conexiones.
+
+### Comunicación
+
+El flujo es similar al del ejercicio anterior, con una extensión al final:
+
+- Luego de recibir la confirmación del batch vacío, el cliente envía una **consulta de ganadores**.
+- El cliente queda esperando la respuesta del servidor.
+- El servidor recibe esta consulta y mantiene la conexión en espera.
+- Cuando el sorteo finaliza, el servidor envía los ganadores a todos los clientes en espera.
+
+### Serialización
+
+- **Consulta de ganadores**: se representa con un byte de valor 3.
+- **Respuesta de ganadores**:
+  - Sigue un formato similar al de un batch.
+  - En lugar de la cantidad de bets, incluye la **cantidad de ganadores**.
+  - Luego se envían los bets ganadores (en el fondo son bets).
