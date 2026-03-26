@@ -167,15 +167,6 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 
 Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. En caso de que el alumno implemente el servidor en Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
 
-### RESOLUCION EJERCICIO N°8
-
-Entiendo que al usar multithreading en python, el GIL impide que muchos hilos ejecuten el mismo codigo al mismo tiempo, evitando asi el paralelismo. Pero en este tp en especifico el server esta casi todo el tiempo haciendo operaciones I/O bound (lectura/escritura de socket), ya que espera bloqueado esperando que las agencias envien sus batches por la red. Si usamos threads, al bloquearse, el SO puede ceder el control a otro hilo para que procese otra conexion distinta, dando asi el casi pero muy cercano paralelismo.
-
-Por ende, voy por el camino del multithreading, aunque no sea 100% paralelismo real (seria concurrente en todo caso), da la sensacion de serlo solo por la naturaleza del servidor (espera bloqueado la mayoria del tiempo esperando recibir algo del lado del cliente y responderle). 
-
-Si hubiese otras operaciones que sea mas del estilo CPU bound (calculos matematicos por ejemplo), entonces ahi si me iria por el camino del multiprocessing. 
-
-
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
 
@@ -424,3 +415,73 @@ El flujo es similar al del ejercicio anterior, con una extensión al final:
   - Sigue un formato similar al de un batch.
   - En lugar de la cantidad de bets, incluye la **cantidad de ganadores**.
   - Luego se envían los bets ganadores (en el fondo son bets).
+
+## Ejercicio 8
+
+Entiendo que al usar multithreading en python, el GIL impide que muchos hilos ejecuten el mismo codigo al mismo tiempo, evitando asi el paralelismo. Pero en este tp en especifico el server esta casi todo el tiempo haciendo operaciones I/O bound (lectura/escritura de socket), ya que espera bloqueado esperando que las agencias envien sus batches por la red. Si usamos threads, al bloquearse, el SO puede ceder el control a otro hilo para que procese otra conexion distinta, dando asi el casi pero muy cercano paralelismo.
+
+Por ende, voy por el camino del multithreading, aunque no sea 100% paralelismo real (seria concurrente en todo caso), da la sensacion de serlo solo por la naturaleza del servidor (espera bloqueado la mayoria del tiempo esperando recibir algo del lado del cliente y responderle). 
+
+Si hubiese otras operaciones que sea mas del estilo CPU bound (calculos matematicos por ejemplo), entonces ahi si me iria por el camino del multiprocessing. 
+
+### Client
+
+No hay cambios en el cliente, ya que la consigna se centra principalmente en el servidor.
+
+---
+
+### Server
+
+Se agregaron mecanismos de **sincronización** para coordinar los hilos que manejan las conexiones con los clientes (*client handlers*).
+
+Cada vez que llega un nuevo cliente, se lanza un thread (client handler) encargado de gestionar toda la comunicación con ese cliente en particular.
+
+El hilo principal del servidor inicia el sorteo una vez que todos los clientes hayan enviado sus apuestas.
+
+Una vez finalizado el sorteo, el hilo principal almacena los ganadores para que los client handlers puedan acceder a ellos y enviarlos a sus respectivos clientes.
+
+Finalmente, cada *client handler* cierra su conexión, y el hilo principal realiza el *join* de todos los hilos, dando asi por terminado el servidor.
+
+### Sincronización
+
+En la implementación del servidor, existen dos recursos compartidos que deben protegerse:
+
+**1. Agencias en espera de ganadores**
+
+Cada *client handler* registra su agencia cuando recibe la consulta de ganadores. Como múltiples hilos pueden registrar simultáneamente, esto puede provocar inconsistencias.
+
+Para resolverlo, se implementa un **`AgenciesMonitor`**, que:
+
+- Encapsula las agencias en espera (un diccionario).
+- Utiliza un *lock* para garantizar acceso seguro.
+- Provee el metodo para registrar agencias de manera sincronizada.
+- Cuenta con mas metodos propios de las agencias que no necesitan ser protegidos.
+
+**2. Almacenamiento de apuestas**
+
+Cada *client handler* guarda las apuestas a medida que las recibe. Si varios hilos escriben al mismo tiempo, podrían perderse datos.
+
+Para evitar esto, se implementa un **`StorageMonitor`**, que:
+
+- Provee un método para guardar apuestas de forma segura usando *lock*.
+- Incluye un método de lectura que no requiere sincronización, ya que solo lo utiliza el hilo principal.
+
+--- 
+
+Además de proteger recursos, es necesario sincronizar el flujo de ejecución de los hilos.
+
+**Barrera 1: Inicio del sorteo**
+
+Se utiliza una *barrier* para sincronizar el punto en el que todos los clientes terminaron de enviar sus apuestas:
+
+- El hilo principal espera a todos los *client handlers* antes de iniciar el sorteo.
+- Cada *client handler*, luego de registrar su agencia, espera en la barrera.
+
+**Barrera 2: Disponibilidad de resultados**
+
+Luego de iniciado el sorteo, los *client handlers* deben esperar a que los resultados estén disponibles:
+
+- Los *client handlers* esperan en una segunda barrera antes de acceder a los ganadores.
+- El hilo principal, una vez finalizado el sorteo, guarda los resultados y también espera en la barrera.
+
+Esto garantiza que ningún hilo intente acceder a resultados antes de que estén listos.
