@@ -191,3 +191,197 @@ Se proveen [pruebas automáticas](https://github.com/7574-sistemas-distribuidos/
 
 El incumplimiento de las pruebas es condición de desaprobación, pero su cumplimiento no es suficiente para la aprobación.  Se pide a los alumnos leer atentamente y **tener en cuenta** los criterios de corrección informados  [en el campus](https://campusgrado.fi.uba.ar/mod/page/view.php?id=73393).
 Respetar el formato y contenido las entradas de logs descritas en los ejercicios, pues son las que se chequean en cada uno de los tests.
+
+# Resolucion
+
+## Ejercicio 1
+
+Para crear el `.sh`, opté por tener un subscript en Python que usa el mismo `.sh`.
+
+Este `.sh`, que lo podemos pensar como un *wrapper*, recibe como parámetro el nombre del archivo final y la cantidad de clientes a generar. Luego, invoca al subscript de Python con los parámetros, el cual generará el archivo indicando los servicios (server y client) y la network.
+
+Cabe mencionar que tomé como ejemplo el `.sh` que daban en el enunciado.
+
+## Ejercicio 2
+
+Se inyectan los *configs* en el generador de Python a través de *Docker volumes*, más específicamente del tipo **bind mount**, ya que queremos que los cambios que hagamos a nivel *host* sobre los *configs* se vean reflejados directamente cuando corren los contenedores. De esta manera, la configuración queda persistida por fuera de la imagen.
+
+También eliminé los log level que venían en el docker-compose, porque en los *configs* ya están definidos.
+
+## Ejercicio 3
+
+Para crear el `.sh`, utilicé una imagen de Docker (*Alpine*), la cual incluye `sh` y el comando `netcat`.
+
+Dentro del script, se levanta un contenedor (que luego se cierra por sí mismo con `--rm`) que se comunica con el servidor y envía un mensaje a través de su *network*. Luego, espera recibir una respuesta, que debería ser exactamente la misma que se envió (echo server).
+
+Finalmente, se realiza una verificación comparando el mensaje enviado con el recibido para determinar si el comportamiento del servidor es correcto.
+
+## Ejercicio 4
+
+### Server
+
+Para manejar la señal `SIGTERM`, creé una funcion que, al recibir la señal, intenta cerrar los sockets: tanto el socket que acepta nuevas conexiones como el de la conexión actual con el cliente. Tambien corta el loop principal a traves de un bool (*_is_running*)
+
+Puede darse el caso de que alguno de estos sockets ya haya sido cerrado (ejemplo: la conexión con el cliente ya terminó), por lo que antes de cerrarlos se realiza una verificación para evitar errores.
+
+### Client
+
+En el cliente, utilicé *goroutines* (un thread liviano) junto con un *channel*.
+
+La goroutine se encarga de manejar la señal `SIGTERM` mientras que el cliente continúa comunicándose con el servidor.
+
+Por otro lado, el channel se usa como comunicación entre la goroutine y el hilo principal, permitiendo avisar cuándo se debe cortar el loop de envío de mensajes.
+
+Cuando se recibe la señal, se cierra la conexión activa (si existe), se loguea el evento y se notifica al hilo principal para que finalice.
+
+## Ejercicio 5
+
+Tanto para el server como para el client, se implemento 2 clases:
+
+- **Socket**: se encarga de enviar y recibir datos entre servidor y cliente, evitando problemas de short read/write.
+- **Protocol**: abstrae el uso del socket en el servidor/cliente, de forma tal que no manejen bytes directamente. En su lugar, provee métodos de más alto nivel (como `SendBet` o `receive_bet`). Además, se encarga de serializar y deserializar el bet.
+
+### Server
+
+Modifiqué el loop principal, el cual ahora espera recibir un bet y luego envía la confirmación una vez que este es almacenado mediante `store_bet`.
+
+### Client
+
+Agregué una clase Bet, que se encarga de crearse a partir de las variables de entorno definidas en el generador.
+
+Para construirlo, se leen los valores desde las variables de entorno necesarias. Estas variables son definidas en el generador generador. Inicialmente consideré usar un archivo `.env`, pero como no lo podia subir al repositorio, los tests lo eliminaban automáticamente (ya que se ejecutan sobre el último commit de la branch).
+
+En su creacion, se valida que no haya errores en los campos:
+- En los *strings*, se verifica que no estén vacíos.
+- En los campos numéricos (como `document` y `number`), se valida que puedan convertirse correctamente a enteros.
+
+Dado que se envia un solo bet, eliminé el loop anterior. El cliente simplemente envia y espera la confirmación.
+
+También eliminé el channel que había implementado previamente, ya que sin loop no es necesario. En caso de  el loop, se interrumpiría al recibir un `SIGTERM`, ya que el socket se cierra y el cliente maneja ese error.
+
+### Comunicación
+
+El flujo de comunicación es el siguiente:
+
+1. El servidor espera conexiones de clientes.
+2. El cliente se conecta al servidor.
+3. El servidor acepta la conexión y espera recibir el bet.
+4. El cliente crea el bet, lo envía y espera la confirmación.
+5. El servidor recibe el bet, lo almacena y envía la confirmación.
+6. El cliente recibe la confirmación y cierra el socket.
+7. El servidor cierra la conexión una vez enviada la confirmación.
+8. Vuelve al paso 1
+
+### Serialización
+
+La serialización del bet sigue un formato similar a TLV, con algunas modificaciones:
+
+- **TYPE (1 byte)**:
+  - 1 → entero
+  - 2 → string
+
+- **LENGTH (2 bytes)**:
+  - Solo se utiliza para los campos de tipo *string*
+
+- **VALUE (tamaño dinámico)**:
+  - Para enteros: 4 bytes
+  - Para strings: longitud variable según el campo *LENGTH*
+
+- **Orden de los campos**:
+  Agency → FirstName → LastName → Document → BirthDate → Number
+
+Luego, para la confirmacion, simplemente consta de un solo byte.
+
+### Ejemplo
+
+- `[01][00 00 00 01]` → Agency = 1 (int32)  
+- `[02][00 10]Santiago Lionel` → FirstName (longitud = 16)  
+- `[02][00 05]Lorca` → LastName (longitud = 5)  
+- `[01][01 D7 8F 91]` → Document = 30904465 (int32)  
+- `[02][00 0A]1999-03-17` → BirthDate (longitud = 10)  
+- `[01][00 00 1D 96]` → Number = 7574 (int32)
+
+## Ejercicio 6
+
+### Client
+
+Se crea un ReaderCsv, encargado de procesar el archivo `.csv` y generar los registros necesarios para construir los bets.
+
+Ahora, el Bet ya no se construye a partir de variables de entorno, sino a partir de cada registro devuelto por el `ReaderCsv`, manteniendo las validaciones sobre sus campos.
+
+En lugar de enviar un único bet, el cliente ahora envía un batch de bets y espera la confirmación del mismo. A medida que procesa cada registro del CSV, va completando el batch. Todo esto ocurre dentro de un loop.
+
+Una vez que envía todos los batches, notifica al servidor que no hay más datos por enviar y cierra la conexión.
+
+El protocolo ahora incluye el método `SendBatch`, que es el equivalente de `receive_batch` del lado del servidor.
+
+
+### Server
+
+El servidor ahora recibe batches en lugar de bets. A medida que recibe cada batch, intenta almacenarlo y responde con una confirmación indicando si la operación fue exitosa.
+
+Cuando recibe el aviso de que no hay más batches (batch vacío), envía una última confirmación y cierra la conexión con el cliente.
+
+El protocolo incluye el método `receive_batch`, equivalente a `SendBatch` del cliente.
+
+
+### Comunicación
+
+El flujo de comunicación ahora es iterativo y basado en batches:
+
+1. El servidor espera conexiones de clientes.
+2. El cliente se conecta al servidor.
+3. El servidor acepta la conexión y espera recibir un batch.
+4. El cliente crea un batch, lo envía y espera la confirmación.
+5. El servidor recibe el batch, lo almacena y envía la confirmación.
+6. El cliente recibe la confirmación.
+7. Se repiten los pasos 4–6 hasta enviar todos los batches.
+8. El cliente envía un batch vacío para indicar que no hay más datos.
+9. El servidor responde con una última confirmación.
+10. El cliente cierra la conexión.
+11. El servidor cierra la conexión y vuelve a esperar nuevos clientes.
+
+
+### Serialización
+
+La serialización de un batch tiene la siguiente estructura:
+
+- **Cantidad de bets (4 bytes)**
+  - Por defecto, suele ser la maxima cantidad de bets que puede enviar por la red sin que supere los 8kb (100 o menos)
+
+- **N bets**
+  - cada uno serializado con el formato definido en el ejercicio 5
+
+
+La confirmación del servidor consiste en **1 byte**:
+
+- 0 → éxito
+- 1 → error
+
+Independientemente del resultado, el cliente continúa enviando batches.
+
+Para indicar que no hay más batches por enviar, el cliente envía un batch con **cantidad de bets igual a 0**. Esto actúa como señal de finalización.
+
+### Calculo del tamaño del batch
+Suponemos que estamos en el peor caso, es decir, donde cada campo del bet es lo más largo posible dentro de lo razonable. 
+
+Con esto podemos estimar un tamaño máximo que podría tener un batch.
+
+En funcion de como serializamos cada batch, detallamos el costo en bytes de cada campo:
+
+- **Header del batch** (4 bytes) — Se suma una vez por paquete.
+- **Campos del bet**:
+   - Agency     (int32): Type (1) + Value (4) = 5 bytes.
+   - FirstName (string): Type (1) + Length (2) + Texto. Si estimamos un nombre "largo" de 20 caracteres = 23 bytes.
+   - LastName  (string): Type (1) + Length (2) + Texto. Si estimamos un apellido "largo" de 20 caracteres = 23 bytes.
+   - Document   (int32): Type (1) + Value (4) = 5 bytes.
+   - BirthDate (string): Type (1) + Length (2) + "YYYY-MM-DD" (10) = 13 bytes.
+   - Number     (int32): Type (1) + Value (4) = 5 bytes.
+   
+Total estimado por bet: ~74 bytes.
+   
+Cada paquete total (Header + Bets) tiene que ser menor a 8000 bytes:
+- 8000 bytes (límite) - 4 bytes (header) = 7996 bytes disponibles para bets.
+- 7996 bytes / 74 bytes por bet es aprox 108 bets por batch.
+
+Entonces, un tamaño "razonable" para el tamaño del batch podría ser 100 bets por batch, dejando un margen de seguridad para variaciones en el tamaño de los campos.
