@@ -289,3 +289,87 @@ Luego, para la confirmacion, simplemente consta de un solo byte.
 - `[02][00 0A]1999-03-17` → BirthDate (longitud = 10)  
 - `[01][00 00 1D 96]` → Number = 7574 (int32)
 
+## Ejercicio 6
+
+### Client
+
+Se crea un ReaderCsv, encargado de procesar el archivo `.csv` y generar los registros necesarios para construir los bets.
+
+Ahora, el Bet ya no se construye a partir de variables de entorno, sino a partir de cada registro devuelto por el `ReaderCsv`, manteniendo las validaciones sobre sus campos.
+
+En lugar de enviar un único bet, el cliente ahora envía un batch de bets y espera la confirmación del mismo. A medida que procesa cada registro del CSV, va completando el batch. Todo esto ocurre dentro de un loop.
+
+Una vez que envía todos los batches, notifica al servidor que no hay más datos por enviar y cierra la conexión.
+
+El protocolo ahora incluye el método `SendBatch`, que es el equivalente de `receive_batch` del lado del servidor.
+
+
+### Server
+
+El servidor ahora recibe batches en lugar de bets. A medida que recibe cada batch, intenta almacenarlo y responde con una confirmación indicando si la operación fue exitosa.
+
+Cuando recibe el aviso de que no hay más batches (batch vacío), envía una última confirmación y cierra la conexión con el cliente.
+
+El protocolo incluye el método `receive_batch`, equivalente a `SendBatch` del cliente.
+
+
+### Comunicación
+
+El flujo de comunicación ahora es iterativo y basado en batches:
+
+1. El servidor espera conexiones de clientes.
+2. El cliente se conecta al servidor.
+3. El servidor acepta la conexión y espera recibir un batch.
+4. El cliente crea un batch, lo envía y espera la confirmación.
+5. El servidor recibe el batch, lo almacena y envía la confirmación.
+6. El cliente recibe la confirmación.
+7. Se repiten los pasos 4–6 hasta enviar todos los batches.
+8. El cliente envía un batch vacío para indicar que no hay más datos.
+9. El servidor responde con una última confirmación.
+10. El cliente cierra la conexión.
+11. El servidor cierra la conexión y vuelve a esperar nuevos clientes.
+
+
+### Serialización
+
+La serialización de un batch tiene la siguiente estructura:
+
+- **Cantidad de bets (4 bytes)**
+  - Por defecto, suele ser la maxima cantidad de bets que puede enviar por la red sin que supere los 8kb (100 o menos)
+
+- **N bets**
+  - cada uno serializado con el formato definido en el ejercicio 5
+
+
+La confirmación del servidor consiste en **1 byte**:
+
+- 0 → éxito
+- 1 → error
+
+Independientemente del resultado, el cliente continúa enviando batches.
+
+Para indicar que no hay más batches por enviar, el cliente envía un batch con **cantidad de bets igual a 0**. Esto actúa como señal de finalización.
+
+### Calculo del tamaño del batch
+Suponemos que estamos en el peor caso, es decir, donde cada campo del bet es lo más largo posible dentro de lo razonable. 
+
+Con esto podemos estimar un tamaño máximo que podría tener un batch.
+
+En funcion de como serializamos cada batch, detallamos el costo en bytes de cada campo:
+
+- **Header del batch** (4 bytes) — Se suma una vez por paquete.
+- **Campos del bet**:
+   - Agency     (int32): Type (1) + Value (4) = 5 bytes.
+   - FirstName (string): Type (1) + Length (2) + Texto. Si estimamos un nombre "largo" de 20 caracteres = 23 bytes.
+   - LastName  (string): Type (1) + Length (2) + Texto. Si estimamos un apellido "largo" de 20 caracteres = 23 bytes.
+   - Document   (int32): Type (1) + Value (4) = 5 bytes.
+   - BirthDate (string): Type (1) + Length (2) + "YYYY-MM-DD" (10) = 13 bytes.
+   - Number     (int32): Type (1) + Value (4) = 5 bytes.
+   
+Total estimado por bet: ~74 bytes.
+   
+Cada paquete total (Header + Bets) tiene que ser menor a 8000 bytes:
+- 8000 bytes (límite) - 4 bytes (header) = 7996 bytes disponibles para bets.
+- 7996 bytes / 74 bytes por bet es aprox 108 bets por batch.
+
+Entonces, un tamaño "razonable" para el tamaño del batch podría ser 100 bets por batch, dejando un margen de seguridad para variaciones en el tamaño de los campos.
