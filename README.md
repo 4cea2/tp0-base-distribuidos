@@ -179,3 +179,27 @@ Se proveen [pruebas automáticas](https://github.com/7574-sistemas-distribuidos/
 
 El incumplimiento de las pruebas es condición de desaprobación, pero su cumplimiento no es suficiente para la aprobación.  Se pide a los alumnos leer atentamente y **tener en cuenta** los criterios de corrección informados  [en el campus](https://campusgrado.fi.uba.ar/mod/page/view.php?id=73393).
 Respetar el formato y contenido las entradas de logs descritas en los ejercicios, pues son las que se chequean en cada uno de los tests.
+
+# Resolucion
+
+## Ejercicio 1
+
+Para crear el `.sh`, opté por tener un subscript en Python que usa el mismo `.sh`.
+
+Este `.sh`, que lo podemos pensar como un *wrapper*, recibe como parámetro el nombre del archivo final y la cantidad de clientes a generar. Luego, invoca al subscript de Python con los parámetros, el cual generará el archivo indicando los servicios (server y client) y la network.
+
+Cabe mencionar que tomé como ejemplo el `.sh` que daban en el enunciado.
+
+## Ejercicio 2
+
+Se inyectan los *configs* en el generador de Python a través de *Docker volumes*, más específicamente del tipo **bind mount**, ya que queremos que los cambios que hagamos a nivel *host* sobre los *configs* se vean reflejados directamente cuando corren los contenedores. De esta manera, la configuración queda persistida por fuera de la imagen.
+
+También eliminé los log level que venían en el docker-compose, porque en los *configs* ya están definidos.
+
+## Ejercicio 3
+
+Para crear el `.sh`, utilicé una imagen de Docker (*Alpine*), la cual incluye `sh` y el comando `netcat`.
+
+Dentro del script, se levanta un contenedor (que luego se cierra por sí mismo con `--rm`) que se comunica con el servidor y envía un mensaje a través de su *network*. Luego, espera recibir una respuesta, que debería ser exactamente la misma que se envió (echo server).
+
+Finalmente, se realiza una verificación comparando el mensaje enviado con el recibido para determinar si el comportamiento del servidor es correcto.
