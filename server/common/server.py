@@ -1,5 +1,6 @@
 import logging
 import signal
+import threading
 from common.socket import Socket
 from common.protocol import Protocol
 import common.utils as utils
@@ -13,15 +14,18 @@ class Server:
     def __init__(self, port, listen_backlog, expected_agencies):
         self._server_socket = Socket(port, listen_backlog)
         self._running = True
-        self._client_socket = None
         self._expected_agencies = expected_agencies
-        self._agencies_ready = {} # dict (agency_id -> protocol)
+        
+        self._agencies_ready = {} 
+        self._lock_agencies = threading.Lock()
+        self._lock_storage = threading.Lock()
+
+        self._threads = []
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
     def _handle_sigterm(self, signum, frame):
         self._running = False
         if self._server_socket is not None: self._server_socket.close()
-        if self._client_socket is not None: self._client_socket.close()
         logging.info('action: shutdown | result: success | signal: SIGTERM')
 
     def run(self):
@@ -37,15 +41,24 @@ class Server:
 
     def _wait_for_agencies(self):
         """Find incoming connections until all expected agencies are connected"""
-        while self._running and len(self._agencies_ready) < self._expected_agencies:
-            self._client_socket = self.__accept_new_connection()
-            if self._client_socket is None:
+        while self._running and len(self._threads) < self._expected_agencies:
+            client_socket = self.__accept_new_connection()
+            if client_socket is None:
                 break
-            self.__handle_client_connection()
+            t = threading.Thread(target=self.__handle_client_connection, args=(client_socket,))
+            t.start()
+            self._threads.append(t)
 
-    def __handle_client_connection(self):
-        protocol = Protocol(self._client_socket)
+        # Wait for all threads to process the batchs sent from the clients and to receive the winners request (if they sent it)
+        for t in self._threads:
+            t.join()
+
+        # Each theard should send the winners to each agency, but as it is implemented, the server is in charge of it
+
+    def __handle_client_connection(self, client_socket):
+        protocol = Protocol(client_socket)
         agency_id = None
+
         while self._running:
             try:
                 batch = protocol.receive_batch()
@@ -57,7 +70,7 @@ class Server:
                 logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(batch)}')
                 if len(batch) > 0:
                     agency_id = batch[0].agency
-                    utils.store_bets(batch)
+                    self._safe_store_bets(batch)
 
                 protocol.send_response(ACK_SUCCESS_BATCH)
                 if len(batch) == 0: 
@@ -70,10 +83,22 @@ class Server:
         
         if protocol.receive_winners_request():
             logging.info(f'action: recibir_consulta_ganadores | result: success | agencia: {agency_id}')
-            self._agencies_ready[agency_id] = protocol
+            self._safe_register_agency(agency_id, protocol)
         else:
             logging.error(f'action: recibir_consulta_ganadores | result: fail | agencia: {agency_id}')
             protocol.close_connection()
+
+    def _safe_store_bets(self, batch):
+        """Encapsula la escritura en disco protegiéndola con un Lock"""
+        with self._lock_storage:
+            utils.store_bets(batch)
+            logging.info(f'action: apuesta_guardada | result: success | cantidad: {len(batch)}')
+
+    def _safe_register_agency(self, agency_id, protocol):
+        """Encapsula el acceso al diccionario compartido"""
+        with self._lock_agencies:
+            self._agencies_ready[agency_id] = protocol
+            logging.info(f'action: agencia_lista | result: success | agencia: {agency_id} | agencias_listas: {len(self._agencies_ready)}/{self._expected_agencies}')
 
     def __accept_new_connection(self):
         # Connection arrived
