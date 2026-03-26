@@ -203,3 +203,21 @@ Para crear el `.sh`, utilicé una imagen de Docker (*Alpine*), la cual incluye `
 Dentro del script, se levanta un contenedor (que luego se cierra por sí mismo con `--rm`) que se comunica con el servidor y envía un mensaje a través de su *network*. Luego, espera recibir una respuesta, que debería ser exactamente la misma que se envió (echo server).
 
 Finalmente, se realiza una verificación comparando el mensaje enviado con el recibido para determinar si el comportamiento del servidor es correcto.
+
+## Ejercicio 4
+
+### Server
+
+Para manejar la señal `SIGTERM`, creé una funcion que, al recibir la señal, intenta cerrar los sockets: tanto el socket que acepta nuevas conexiones como el de la conexión actual con el cliente. Tambien corta el loop principal a traves de un bool (*_is_running*)
+
+Puede darse el caso de que alguno de estos sockets ya haya sido cerrado (ejemplo: la conexión con el cliente ya terminó), por lo que antes de cerrarlos se realiza una verificación para evitar errores.
+
+### Client
+
+En el cliente, utilicé *goroutines* (un thread liviano) junto con un *channel*.
+
+La goroutine se encarga de manejar la señal `SIGTERM` mientras que el cliente continúa comunicándose con el servidor.
+
+Por otro lado, el channel se usa como comunicación entre la goroutine y el hilo principal, permitiendo avisar cuándo se debe cortar el loop de envío de mensajes.
+
+Cuando se recibe la señal, se cierra la conexión activa (si existe), se loguea el evento y se notifica al hilo principal para que finalice.
