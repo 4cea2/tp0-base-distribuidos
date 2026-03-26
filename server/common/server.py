@@ -14,7 +14,7 @@ class Server:
         self._running = True
 
         self._expected_agencies = expected_agencies # Number of expected agencies to connect and send their bets
-        self._agencies_monitor = AgenciesMonitor(expected_agencies)
+        self._agencies_monitor = AgenciesMonitor()
         self._storage_monitor = StorageMonitor()
         self._clients_handler = [] # List to keep track of the client handler threads, to later join them before finishing the server
 
